@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
   try {
-    const { query } = await req.json();
+    const { query, gl } = await req.json();
 
     if (!query || typeof query !== "string") {
       return NextResponse.json({ error: "Missing search query" }, { status: 400 });
@@ -16,16 +16,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const serperPayload = {
+      q: query,
+      num: 3,
+      gl: gl || "us",
+    };
+    console.log("Serper request payload:", JSON.stringify(serperPayload));
+
     const response = await fetch("https://google.serper.dev/search", {
       method: "POST",
       headers: {
         "X-API-KEY": apiKey,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        q: query,
-        num: 3,
-      }),
+      body: JSON.stringify(serperPayload),
     });
 
     if (!response.ok) {

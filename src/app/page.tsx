@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -26,6 +26,7 @@ import {
   Layers,
 } from "lucide-react";
 import type { SearchResult, PageAnalysis, ClusterAnalysis } from "@/lib/types";
+import { countries, usStates, findUsStateByName, buildLocationQuery } from "@/lib/locations";
 
 type AnalysisState = {
   searchResults: SearchResult[];
@@ -41,6 +42,24 @@ export default function Home() {
   const [data, setData] = useState<AnalysisState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedSchemas, setExpandedSchemas] = useState<Record<string, boolean>>({});
+  const [country, setCountry] = useState("us");
+  const [usState, setUsState] = useState("");
+
+  useEffect(() => {
+    fetch("https://ipapi.co/json/")
+      .then((res) => res.json())
+      .then((data) => {
+        const code = (data.country_code ?? "").toLowerCase();
+        if (countries.some((c) => c.code === code)) {
+          setCountry(code);
+        }
+        if (code === "us" && data.region) {
+          const matched = findUsStateByName(data.region);
+          if (matched) setUsState(matched);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSearch = useCallback(async () => {
     if (!query.trim()) return;
@@ -55,7 +74,10 @@ export default function Home() {
       const searchRes = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: query.trim() }),
+        body: JSON.stringify({
+          query: buildLocationQuery(query.trim(), country, usState || undefined),
+          gl: country,
+        }),
       });
 
       if (!searchRes.ok) {
@@ -123,7 +145,7 @@ export default function Home() {
       setLoading(false);
       setLoadingStage("");
     }
-  }, [query]);
+  }, [query, country, usState]);
 
   const toggleSchema = (key: string) => {
     setExpandedSchemas((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -172,6 +194,40 @@ export default function Home() {
                 </>
               )}
             </Button>
+          </div>
+
+          <div className="flex items-center gap-2 mt-2">
+            <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <select
+              value={country}
+              onChange={(e) => {
+                setCountry(e.target.value);
+                if (e.target.value !== "us") setUsState("");
+              }}
+              disabled={loading}
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+            >
+              {countries.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            {country === "us" && (
+              <select
+                value={usState}
+                onChange={(e) => setUsState(e.target.value)}
+                disabled={loading}
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+              >
+                <option value="">All States</option>
+                {usStates.map((s) => (
+                  <option key={s.code} value={s.code}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {loading && loadingStage && (
